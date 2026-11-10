@@ -1,0 +1,753 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Direct call</title>
+    <style>
+      :root {
+        --bg: #0f1a24;
+        --panel: #16242f;
+        --field: #0c141c;
+        --line: #2a3d4c;
+        --text: #e6edf3;
+        --muted: #8fa3b3;
+        --accent: #5cc8ff;
+        --accent-ink: #06222f;
+        --danger: #ff7a6b;
+        --ok: #6fe3a3;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font:
+          16px/1.5 system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          sans-serif;
+      }
+      button,
+      textarea {
+        font: inherit;
+        color: inherit;
+      }
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      /* ---------- Setup ---------- */
+      #setup {
+        max-width: 640px;
+        margin: 0 auto;
+        padding: 40px 20px 64px;
+      }
+      h1 {
+        font-size: 1.9rem;
+        margin: 0 0 4px;
+        letter-spacing: -0.02em;
+      }
+      .lead {
+        color: var(--muted);
+        margin: 0 0 28px;
+        max-width: 56ch;
+      }
+
+      .tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 20px;
+      }
+      .tab {
+        flex: 1;
+        padding: 10px 14px;
+        border-radius: 10px;
+        cursor: pointer;
+        background: transparent;
+        border: 1px solid var(--line);
+        color: var(--muted);
+      }
+      .tab[aria-selected="true"] {
+        background: var(--panel);
+        color: var(--text);
+        border-color: var(--accent);
+      }
+
+      .step {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 18px;
+        margin-bottom: 14px;
+      }
+      .step h2 {
+        font-size: 1rem;
+        margin: 0 0 4px;
+      }
+      .step p {
+        margin: 0 0 12px;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+      .step.locked {
+        opacity: 0.45;
+        pointer-events: none;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 96px;
+        resize: vertical;
+        padding: 10px 12px;
+        background: var(--field);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 0.78rem;
+        word-break: break-all;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .btn {
+        padding: 9px 16px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: transparent;
+        cursor: pointer;
+      }
+      .btn:hover {
+        border-color: var(--muted);
+      }
+      .btn.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--accent-ink);
+        font-weight: 600;
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .ips {
+        font-size: 0.85rem;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+      .ips code {
+        color: var(--text);
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+      }
+      .warn {
+        color: var(--danger);
+      }
+
+      #status {
+        min-height: 1.5em;
+        margin: 14px 2px 0;
+        font-size: 0.95rem;
+      }
+      #status.err {
+        color: var(--danger);
+      }
+      #status.ok {
+        color: var(--ok);
+      }
+
+      details {
+        margin-top: 28px;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      details summary {
+        cursor: pointer;
+        color: var(--text);
+      }
+      details ul {
+        padding-left: 1.2em;
+      }
+      details li {
+        margin: 6px 0;
+      }
+
+      /* ---------- Call ---------- */
+      #call {
+        position: fixed;
+        inset: 0;
+        background: #000;
+        display: none;
+      }
+      #call.on {
+        display: block;
+      }
+      #screen {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      #remoteVideo {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        opacity: 0;
+        pointer-events: none;
+      }
+      #localVideo {
+        position: absolute;
+        right: 16px;
+        bottom: 88px;
+        width: min(28vw, 220px);
+        aspect-ratio: 4 / 3;
+        object-fit: cover;
+        transform: scaleX(-1);
+        background: #111;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+      }
+      #controls {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: max(16px, env(safe-area-inset-bottom));
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+      }
+      #controls .btn {
+        background: rgba(15, 26, 36, 0.85);
+        border-color: rgba(255, 255, 255, 0.25);
+      }
+      #controls .btn[aria-pressed="true"] {
+        background: var(--danger);
+        border-color: var(--danger);
+        color: #2a0a06;
+      }
+      #controls .btn.hang {
+        background: var(--danger);
+        border-color: var(--danger);
+        color: #2a0a06;
+        font-weight: 600;
+      }
+      #banner {
+        position: absolute;
+        top: max(16px, env(safe-area-inset-top));
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(15, 26, 36, 0.9);
+        border: 1px solid var(--danger);
+        color: var(--danger);
+        padding: 6px 14px;
+        border-radius: 999px;
+        display: none;
+        font-size: 0.9rem;
+      }
+      #banner.on {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="setup">
+      <h1>Direct call</h1>
+      <p class="lead">
+        Peer-to-peer video call with no server in between. You and your friend
+        swap two short codes over any messaging app, and the call connects
+        directly.
+      </p>
+
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" id="tabHost" aria-selected="true">
+          I start the call
+        </button>
+        <button class="tab" role="tab" id="tabJoin" aria-selected="false">
+          I join a call
+        </button>
+      </div>
+
+      <!-- Host -->
+      <section id="hostPane">
+        <div class="step" id="hStep1">
+          <h2>Create your invitation</h2>
+          <p>
+            Your browser will ask for camera and microphone access. The
+            invitation contains your IP addresses.
+          </p>
+          <button class="btn primary" id="createBtn">Create invitation</button>
+          <div id="hostOfferBox" hidden>
+            <div class="row" style="margin-top: 14px"></div>
+            <textarea
+              id="hostOffer"
+              readonly
+              aria-label="Your invitation"
+            ></textarea>
+            <div class="row">
+              <button class="btn" id="copyOffer">Copy invitation</button>
+            </div>
+            <div class="ips" id="hostIps"></div>
+          </div>
+        </div>
+        <div class="step locked" id="hStep2">
+          <h2>Paste your friend’s reply</h2>
+          <p>
+            Send the invitation to your friend. They will send you a reply code
+            back.
+          </p>
+          <textarea
+            id="hostAnswer"
+            placeholder="Paste the reply code here"
+            aria-label="Friend’s reply"
+          ></textarea>
+          <div class="row">
+            <button class="btn primary" id="connectBtn">Connect</button>
+          </div>
+          <div class="ips" id="hostPeerIps"></div>
+        </div>
+      </section>
+
+      <!-- Guest -->
+      <section id="joinPane" hidden>
+        <div class="step" id="gStep1">
+          <h2>Paste the invitation</h2>
+          <p>
+            Paste the code your friend sent you. Your browser will ask for
+            camera and microphone access.
+          </p>
+          <textarea
+            id="guestOffer"
+            placeholder="Paste the invitation code here"
+            aria-label="Invitation from your friend"
+          ></textarea>
+          <div class="row">
+            <button class="btn primary" id="acceptBtn">Create reply</button>
+          </div>
+          <div class="ips" id="guestPeerIps"></div>
+        </div>
+        <div class="step locked" id="gStep2">
+          <h2>Send your reply</h2>
+          <p>
+            Send this code back to your friend. The call starts when they
+            connect.
+          </p>
+          <textarea
+            id="guestAnswer"
+            readonly
+            aria-label="Your reply"
+          ></textarea>
+          <div class="row">
+            <button class="btn" id="copyAnswer">Copy reply</button>
+          </div>
+          <div class="ips" id="guestIps"></div>
+        </div>
+      </section>
+
+      <div id="status" role="status" aria-live="polite"></div>
+
+      <details>
+        <summary>When does this work?</summary>
+        <ul>
+          <li>
+            Without STUN or TURN servers, the call can only use the addresses
+            found on your own devices. Both of you must be able to reach each
+            other directly.
+          </li>
+          <li><strong>Same Wi-Fi or LAN:</strong> works out of the box.</li>
+          <li>
+            <strong>Over the internet:</strong> works if both of you have a
+            public IPv6 address, or if you share a VPN or overlay network such
+            as Tailscale, ZeroTier or WireGuard.
+          </li>
+          <li>
+            <strong>Two different home networks on IPv4:</strong> usually fails,
+            because NAT blocks incoming connections and there is no server to
+            help get through it.
+          </li>
+          <li>
+            Each invitation and reply works once. For a new call, start over.
+          </li>
+        </ul>
+      </details>
+    </main>
+
+    <div id="call">
+      <canvas id="screen"></canvas>
+      <video id="remoteVideo" autoplay playsinline></video>
+      <video id="localVideo" autoplay playsinline muted></video>
+      <div id="banner"></div>
+      <div id="controls">
+        <button class="btn" id="micBtn" aria-pressed="false">Mute</button>
+        <button class="btn" id="camBtn" aria-pressed="false">Camera off</button>
+        <button class="btn hang" id="hangBtn">Hang up</button>
+      </div>
+    </div>
+
+    <script>
+      (() => {
+        "use strict";
+        const $ = (id) => document.getElementById(id);
+
+        let pc = null;
+        let localStream = null;
+        let inCall = false;
+
+        /* ---------------- UI helpers ---------------- */
+        function setStatus(msg, kind = "") {
+          const el = $("status");
+          el.textContent = msg;
+          el.className = kind;
+        }
+
+        function selectTab(host) {
+          $("tabHost").setAttribute("aria-selected", host);
+          $("tabJoin").setAttribute("aria-selected", !host);
+          $("hostPane").hidden = !host;
+          $("joinPane").hidden = host;
+          setStatus("");
+        }
+        $("tabHost").onclick = () => selectTab(true);
+        $("tabJoin").onclick = () => selectTab(false);
+
+        async function copyFrom(textarea, btn) {
+          try {
+            await navigator.clipboard.writeText(textarea.value);
+          } catch {
+            textarea.select();
+            document.execCommand("copy");
+          }
+          const old = btn.textContent;
+          btn.textContent = "Copied";
+          setTimeout(() => (btn.textContent = old), 1500);
+        }
+        $("copyOffer").onclick = () => copyFrom($("hostOffer"), $("copyOffer"));
+        $("copyAnswer").onclick = () =>
+          copyFrom($("guestAnswer"), $("copyAnswer"));
+
+        /* ---------------- Connection codes ---------------- */
+        // A code is the session description (which includes the IP addresses, ports,
+        // ICE credentials and DTLS fingerprint), deflated and base64url-encoded.
+        const toB64 = (bytes) => {
+          let s = "";
+          for (const b of bytes) s += String.fromCharCode(b);
+          return btoa(s)
+            .replace(/\+/g, "-")
+            .replace(/\//g, "_")
+            .replace(/=+$/, "");
+        };
+        const fromB64 = (str) => {
+          str = str.replace(/-/g, "+").replace(/_/g, "/");
+          while (str.length % 4) str += "=";
+          return Uint8Array.from(atob(str), (c) => c.charCodeAt(0));
+        };
+        const pipeBytes = async (bytes, transform) =>
+          new Uint8Array(
+            await new Response(
+              new Blob([bytes]).stream().pipeThrough(transform),
+            ).arrayBuffer(),
+          );
+
+        async function pack(desc) {
+          const raw = new TextEncoder().encode(
+            JSON.stringify({ type: desc.type, sdp: desc.sdp }),
+          );
+          if ("CompressionStream" in window) {
+            return (
+              "DC1." +
+              toB64(await pipeBytes(raw, new CompressionStream("deflate-raw")))
+            );
+          }
+          return "DC0." + toB64(raw);
+        }
+
+        async function unpack(code, expectedType) {
+          try {
+            code = code.replace(/\s+/g, "");
+            const dot = code.indexOf(".");
+            const tag = code.slice(0, dot);
+            let bytes = fromB64(code.slice(dot + 1));
+            if (tag === "DC1")
+              bytes = await pipeBytes(
+                bytes,
+                new DecompressionStream("deflate-raw"),
+              );
+            else if (tag !== "DC0") throw new Error("bad tag");
+            const desc = JSON.parse(new TextDecoder().decode(bytes));
+            if (desc.type !== expectedType) throw new Error("wrong type");
+            return desc;
+          } catch {
+            throw new Error(
+              expectedType === "offer"
+                ? "That does not look like an invitation code. Paste the full code your friend sent."
+                : "That does not look like a reply code. Paste the full code your friend sent back.",
+            );
+          }
+        }
+
+        // List the unique UDP addresses contained in a session description.
+        function addressesIn(sdp) {
+          const found = new Set();
+          for (const m of sdp.matchAll(
+            /^a=candidate:\S+ \d+ (\S+) \d+ (\S+) \d+ typ \S+/gm,
+          )) {
+            if (m[1].toLowerCase() === "udp") found.add(m[2]);
+          }
+          return [...found];
+        }
+        function showAddresses(el, label, sdp) {
+          const list = addressesIn(sdp);
+          el.replaceChildren();
+          if (!list.length) {
+            el.textContent = "";
+            return;
+          }
+          el.append(label + " ");
+          list.forEach((ip, i) => {
+            const c = document.createElement("code");
+            c.textContent = ip;
+            el.append(c, i < list.length - 1 ? ", " : "");
+          });
+          if (list.some((ip) => ip.endsWith(".local"))) {
+            const w = document.createElement("div");
+            w.className = "warn";
+            w.textContent =
+              "Your browser is hiding some local addresses. Allow camera access first, then create the code again.";
+            el.append(w);
+          }
+        }
+
+        /* ---------------- Media and peer connection ---------------- */
+        async function getMedia() {
+          if (localStream) return localStream;
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error(
+              "Camera access is not available here. Open this file in Chrome, Edge or Firefox, or serve it over HTTPS.",
+            );
+          }
+          try {
+            localStream = await navigator.mediaDevices.getUserMedia({
+              video: {
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                frameRate: { ideal: 30 },
+              },
+              audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+              },
+            });
+          } catch (e) {
+            throw new Error(
+              "Could not access your camera and microphone: " +
+                (e.message || e.name),
+            );
+          }
+          $("localVideo").srcObject = localStream;
+          return localStream;
+        }
+
+        function newPeer() {
+          // No ICE servers: only addresses found on this machine are used.
+          pc = new RTCPeerConnection({ iceServers: [] });
+          localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
+
+          pc.ontrack = (e) => {
+            const v = $("remoteVideo");
+            if (v.srcObject !== e.streams[0]) v.srcObject = e.streams[0];
+            v.play().catch(() => {});
+          };
+
+          pc.onconnectionstatechange = () => {
+            const s = pc.connectionState;
+            if (s === "connected") {
+              $("banner").classList.remove("on");
+              if (!inCall) showCall();
+            } else if (s === "connecting") {
+              if (!inCall) setStatus("Connecting…");
+            } else if (s === "disconnected") {
+              if (inCall) banner("Connection interrupted. Trying to recover…");
+            } else if (s === "failed") {
+              if (inCall)
+                banner("Connection lost. Hang up and start a new call.");
+              else
+                setStatus(
+                  "Could not connect. The two addresses are probably not reachable from each other. See “When does this work?” below.",
+                  "err",
+                );
+            }
+          };
+          return pc;
+        }
+
+        function waitForIce(peer) {
+          return new Promise((resolve) => {
+            if (peer.iceGatheringState === "complete") return resolve();
+            const done = () => {
+              if (peer.iceGatheringState === "complete") {
+                peer.removeEventListener("icegatheringstatechange", done);
+                resolve();
+              }
+            };
+            peer.addEventListener("icegatheringstatechange", done);
+            setTimeout(resolve, 5000); // safety net
+          });
+        }
+
+        /* ---------------- Host flow ---------------- */
+        $("createBtn").onclick = async () => {
+          $("createBtn").disabled = true;
+          try {
+            setStatus("Waiting for camera and microphone permission…");
+            await getMedia();
+            newPeer();
+            await pc.setLocalDescription(await pc.createOffer());
+            setStatus("Collecting addresses…");
+            await waitForIce(pc);
+            $("hostOffer").value = await pack(pc.localDescription);
+            $("hostOfferBox").hidden = false;
+            showAddresses(
+              $("hostIps"),
+              "Addresses in your invitation:",
+              pc.localDescription.sdp,
+            );
+            $("hStep2").classList.remove("locked");
+            setStatus(
+              "Send the invitation to your friend, then paste their reply below.",
+            );
+          } catch (e) {
+            setStatus(e.message, "err");
+            $("createBtn").disabled = false;
+          }
+        };
+
+        $("connectBtn").onclick = async () => {
+          try {
+            const answer = await unpack($("hostAnswer").value, "answer");
+            showAddresses($("hostPeerIps"), "Friend’s addresses:", answer.sdp);
+            $("connectBtn").disabled = true;
+            setStatus("Connecting…");
+            await pc.setRemoteDescription(answer);
+          } catch (e) {
+            $("connectBtn").disabled = false;
+            setStatus(e.message, "err");
+          }
+        };
+
+        /* ---------------- Guest flow ---------------- */
+        $("acceptBtn").onclick = async () => {
+          $("acceptBtn").disabled = true;
+          try {
+            const offer = await unpack($("guestOffer").value, "offer");
+            showAddresses($("guestPeerIps"), "Friend’s addresses:", offer.sdp);
+            setStatus("Waiting for camera and microphone permission…");
+            await getMedia();
+            newPeer();
+            await pc.setRemoteDescription(offer);
+            await pc.setLocalDescription(await pc.createAnswer());
+            setStatus("Collecting addresses…");
+            await waitForIce(pc);
+            $("guestAnswer").value = await pack(pc.localDescription);
+            showAddresses(
+              $("guestIps"),
+              "Addresses in your reply:",
+              pc.localDescription.sdp,
+            );
+            $("gStep2").classList.remove("locked");
+            setStatus(
+              "Send the reply to your friend. The call starts when they connect.",
+            );
+          } catch (e) {
+            setStatus(e.message, "err");
+            $("acceptBtn").disabled = false;
+          }
+        };
+
+        /* ---------------- Call view ---------------- */
+        const canvas = $("screen");
+        const ctx = canvas.getContext("2d");
+        const remote = $("remoteVideo");
+
+        function banner(msg) {
+          $("banner").textContent = msg;
+          $("banner").classList.add("on");
+        }
+
+        function showCall() {
+          inCall = true;
+          $("setup").hidden = true;
+          $("call").classList.add("on");
+          remote.play().catch(() => {});
+          requestAnimationFrame(draw);
+        }
+
+        function draw() {
+          if (!inCall) return;
+          const dpr = window.devicePixelRatio || 1;
+          const r = canvas.getBoundingClientRect();
+          const W = Math.round(r.width * dpr),
+            H = Math.round(r.height * dpr);
+          if (canvas.width !== W || canvas.height !== H) {
+            canvas.width = W;
+            canvas.height = H;
+          }
+
+          ctx.fillStyle = "#000";
+          ctx.fillRect(0, 0, W, H);
+
+          if (remote.readyState >= 2 && remote.videoWidth) {
+            const s = Math.min(W / remote.videoWidth, H / remote.videoHeight);
+            const w = remote.videoWidth * s,
+              h = remote.videoHeight * s;
+            ctx.drawImage(remote, (W - w) / 2, (H - h) / 2, w, h);
+          } else {
+            ctx.fillStyle = "#8fa3b3";
+            ctx.font = `${16 * dpr}px system-ui, sans-serif`;
+            ctx.textAlign = "center";
+            ctx.fillText("Waiting for video…", W / 2, H / 2);
+          }
+          requestAnimationFrame(draw);
+        }
+
+        function toggleTracks(kind, btn, onLabel, offLabel) {
+          const tracks =
+            kind === "audio"
+              ? localStream.getAudioTracks()
+              : localStream.getVideoTracks();
+          const enable = !tracks[0]?.enabled;
+          tracks.forEach((t) => (t.enabled = enable));
+          btn.setAttribute("aria-pressed", String(!enable));
+          btn.textContent = enable ? onLabel : offLabel;
+        }
+        $("micBtn").onclick = () =>
+          toggleTracks("audio", $("micBtn"), "Mute", "Unmute");
+        $("camBtn").onclick = () =>
+          toggleTracks("video", $("camBtn"), "Camera off", "Camera on");
+
+        $("hangBtn").onclick = () => {
+          inCall = false;
+          if (pc) pc.close();
+          if (localStream) localStream.getTracks().forEach((t) => t.stop());
+          location.reload();
+        };
+
+        window.addEventListener("beforeunload", () => {
+          if (pc) pc.close();
+        });
+      })();
+    </script>
+  </body>
+</html>
